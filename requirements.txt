@@ -1,0 +1,11 @@
+langchain
+langchain-community
+langgraph
+langchain-openai
+duckduckgo-search
+beautifulsoup4
+python-dotenv
+termcolor
+fastapi
+uvicorn
+mcp
