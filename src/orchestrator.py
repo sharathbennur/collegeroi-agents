@@ -38,7 +38,7 @@ def orchestrator_node(state: OrchestratorState):
     
     CURRENT STATE:
     - Colleges Queried: {state.get('colleges_queried', [])}
-    - Validated Info: {state.get('validated_info', {{}})}
+    - Validated Info: {state.get('validated_info', {})}
     
     GUIDELINES:
     1. If the user asks for tuition info for a college, you should acknowledge it and initiate research.
