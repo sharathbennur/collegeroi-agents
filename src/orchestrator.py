@@ -2,6 +2,7 @@ import os
 import sqlite3
 from typing import Annotated, List, TypedDict, Dict
 from langgraph.graph import StateGraph, START, END
+from langgraph.graph.message import add_messages
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
@@ -12,7 +13,7 @@ load_dotenv()
 
 # Define the state schema
 class OrchestratorState(TypedDict):
-    messages: Annotated[List[BaseMessage], "The conversation history"]
+    messages: Annotated[List[BaseMessage], add_messages]
     colleges_queried: List[str]
     validated_info: Dict[str, str]  # college_name -> status (e.g., "confirmed", "incorrect")
 

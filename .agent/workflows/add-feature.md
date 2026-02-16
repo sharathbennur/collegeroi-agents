@@ -10,3 +10,6 @@ When adding new agents or creating new features in the `collegeroi-agents` repos
     *   **Ask for API endpoint**: If it's a new agent, ask the user if a corresponding API endpoint (e.g., in `server.py`) is needed.
     *   **Add to MCP Server**: Automatically add the new agent or its capabilities as a tool in `mcp_server.py`.
 4.  **Verify MCP Server**: Ensure the `mcp_server.py` correctly imports and exposes the new functionality.
+5.  **Add/Update Verification**:
+    *   **New Agent**: Create a new verification script in `verification/` (e.g., `verify_new_agent.py`) and add it to `verification/run_all.py`.
+    *   **Updated Agent**: Update the existing verification script to cover the new functionality.

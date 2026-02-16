@@ -35,10 +35,16 @@ A suite of AI agents designed to research and report college tuition costs and f
 ## Usage
 
 ### Command Line Interface (CLI)
-Run a quick search for a college:
+### Command Line Interface (CLI)
+Interact with the Orchestrator Agent in a stateful chat:
+```bash
+python main.py
+```
+Or start with an initial query:
 ```bash
 python main.py "Stanford University"
 ```
+The session maintains memory of previous questions.
 
 ### FastAPI Server
 Start the REST API server:
@@ -65,6 +71,11 @@ Run the verification suite to ensure all components are working:
 ```bash
 python verification/run_all.py
 ```
+This runs tests for:
+- Tools (`verify_tools.py`)
+- Personalized Cost Agent (`verify_personalized_cost.py`)
+- Orchestrator/State Memory (`verify_orchestrator.py`)
+- CLI Logic (`verify_cli.py`)
 
 ## License
 

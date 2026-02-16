@@ -32,7 +32,8 @@ def main():
     scripts = [
         "verification/verify_tools.py",
         "verification/verify_personalized_cost.py",
-        "verification/verify_orchestrator.py"
+        "verification/verify_orchestrator.py",
+        "verification/verify_cli.py"
     ]
     
     passed = 0
