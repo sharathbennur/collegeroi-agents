@@ -6,6 +6,7 @@ A suite of AI agents designed to research and report college tuition costs and f
 
 - **Tuition Research**: Automatically finds current tuition, room, and board costs for any US college.
 - **Personalized Estimates**: Calculates net price and remaining gaps based on family contribution and expected aid.
+- **User Session Memory**: Persistence for user queries and validated information using LangGraph Orchestration.
 - **Multi-Interface**:
   - **CLI**: Simple command-line tool for quick queries.
   - **REST API**: FastAPI backend for integration into web apps.
@@ -47,6 +48,8 @@ python server.py
 The API will be available at `http://localhost:8000`.
 - Docs: `http://localhost:8000/docs`
 - Query: `GET /college/{college_name}`
+- Personalized: `POST /personalized-cost` (Body: `{"college_name": "string", "family_contribution": int, "financial_aid": int}`)
+- Chat: `POST /chat` (Body: `{"message": "string", "user_id": "string"}`)
 
 ### MCP Server
 Run the MCP server (typically used by an MCP client):

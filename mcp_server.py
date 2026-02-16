@@ -1,6 +1,8 @@
 from mcp.server.fastmcp import FastMCP
 from langchain_core.messages import SystemMessage
 from src.agent import get_agent, SYSTEM_PROMPT
+from src.orchestrator import get_orchestrator_graph
+from langchain_core.messages import HumanMessage
 import asyncio
 
 # Initialize FastMCP server
@@ -80,6 +82,41 @@ async def get_personalized_cost(college_name: str, family_contribution: int, fin
         return full_content
     except Exception as e:
         return f"Error during agent execution: {str(e)}"
+
+@mcp.tool()
+async def chat_with_orchestrator(message: str, user_id: str = "default_user") -> str:
+    """
+    Chat with the College ROI Orchestrator. 
+    It maintains state about your researched colleges and validated info.
+    """
+    try:
+        graph = get_orchestrator_graph()
+        config = {"configurable": {"thread_id": user_id}}
+        
+        # In a real app, we'd fetch the existing state or let LangGraph handle it via thread_id
+        # We just need to pass the new message
+        inputs = {"messages": [HumanMessage(content=message)]}
+        
+        # We use a loop for the graph since it might have multiple steps (orchestrator -> researcher)
+        # But we'll just gather the final output for the MCP response
+        result = None
+        
+        # Run the graph
+        loop = asyncio.get_event_loop()
+        
+        # We'll use graph.ainvoke if it's async-friendly or run graph.invoke in executor
+        # Since SqliteSaver might block, executor is safer for basic implementation
+        def run_graph():
+            # For a simpler response, we can just use invoke
+            return graph.invoke(inputs, config=config)
+            
+        result = await loop.run_in_executor(None, run_graph)
+        
+        # Return the last AI message
+        return result["messages"][-1].content
+        
+    except Exception as e:
+        return f"Error in orchestrator: {str(e)}"
 
 if __name__ == "__main__":
     mcp.run()

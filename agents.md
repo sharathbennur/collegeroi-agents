@@ -28,6 +28,8 @@ The agent is exposed through multiple interfaces:
 - **File**: `server.py`
 - **Endpoints**:
     - `GET /college/{college_name}`: Returns tuition info and sources.
+    - `POST /personalized-cost`: Returns a personalized breakdown based on aid.
+    - `POST /chat`: Stateful session chat using the Orchestrator.
 - **Function**: REST API wrapper around the agent.
 
 ### 3. MCP Server (Model Context Protocol)
@@ -36,3 +38,16 @@ The agent is exposed through multiple interfaces:
     - `get_college_tuition(college_name)`: Finds general tuition information.
     - `get_personalized_cost(college_name, family_contribution, financial_aid)`: Calculates net price and remaining gap based on user's financial situation.
 - **Function**: Exposes agent capabilities as tools for MCP clients (e.g., Claude Desktop, other AI assistants).
+
+## Orchestrator Agent (State & Memory)
+
+The Orchestrator manages the user's session, keeping track of history and specific stateful information.
+
+### Capabilities
+- **Memory**: Uses `SqliteSaver` to persist conversation state and user progress.
+- **State Tracking**: Maintains a list of colleges researched and user-validated information.
+- **Routing**: Delegates research tasks to the core Research Agent.
+
+### Implementation
+- **Source**: `src/orchestrator.py`
+- **Persistence**: SQLite (checkpoints.sqlite)

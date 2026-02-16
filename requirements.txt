@@ -9,3 +9,4 @@ termcolor
 fastapi
 uvicorn
 mcp
+langgraph-checkpoint-sqlite

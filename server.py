@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from langchain_core.messages import SystemMessage
 from src.agent import get_agent, SYSTEM_PROMPT
+from src.orchestrator import get_orchestrator_graph
+from langchain_core.messages import HumanMessage
 import uvicorn
 import os
 
@@ -14,6 +16,19 @@ class CollegeResponse(BaseModel):
     college_name: str
     tuition_info: str
     sources: list[str] = []
+
+class OrchestratorRequest(BaseModel):
+    message: str
+    user_id: str = "default_user"
+
+class OrchestratorResponse(BaseModel):
+    response: str
+    user_id: str
+
+class PersonalizedCostRequest(BaseModel):
+    college_name: str
+    family_contribution: int
+    financial_aid: int
 
 @app.get("/")
 async def root():
@@ -52,6 +67,63 @@ async def get_college_tuition(college_name: str):
             sources = [line.strip() for line in sources_text.split('\n') if line.strip() and line.strip().startswith('http')]
 
         return CollegeResponse(college_name=college_name, tuition_info=clean_content, sources=sources)
+    except Exception as e:
+        print(f"Error during agent execution: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
+
+@app.post("/chat", response_model=OrchestratorResponse)
+async def chat_with_orchestrator(request: OrchestratorRequest):
+    """
+    Stateful chat with the College ROI Orchestrator.
+    Manages user session memory and directs research.
+    """
+    try:
+        graph = get_orchestrator_graph()
+        config = {"configurable": {"thread_id": request.user_id}}
+        
+        inputs = {"messages": [HumanMessage(content=request.message)]}
+        
+        # Invoke the graph
+        result = graph.invoke(inputs, config=config)
+        
+        return OrchestratorResponse(
+            response=result["messages"][-1].content,
+            user_id=request.user_id
+        )
+    except Exception as e:
+        print(f"Error in orchestrator: {e}")
+        raise HTTPException(status_code=500, detail=f"Error in orchestrator: {str(e)}")
+
+@app.post("/personalized-cost")
+async def get_personalized_cost(request: PersonalizedCostRequest):
+    """
+    Get a personalized cost estimate for a college.
+    """
+    try:
+        agent = get_agent()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error initializing agent: {str(e)}")
+
+    prompt = f"""Find the per-year tuition cost for {request.college_name}. 
+    Then, using the following financial details:
+    - Family Contribution: ${request.family_contribution}
+    - Expected Financial Aid: ${request.financial_aid}
+    
+    Calculate:
+    1. The Net Price (Total Cost - Financial Aid)
+    2. The Remaining Gap (Net Price - Family Contribution)
+    
+    Provide a clear breakdown of the costs, aid, and what the family still needs to cover.
+    """
+
+    inputs = {"messages": [
+        SystemMessage(content=SYSTEM_PROMPT),
+        ("user", prompt)
+    ]}
+    
+    try:
+        result = agent.invoke(inputs)
+        return {"response": result["messages"][-1].content}
     except Exception as e:
         print(f"Error during agent execution: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
