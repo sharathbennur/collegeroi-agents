@@ -1,6 +1,6 @@
 from mcp.server.fastmcp import FastMCP
 from langchain_core.messages import SystemMessage
-from src.agent import get_agent, SYSTEM_PROMPT
+from src.agent import get_agent, SYSTEM_PROMPT, SALARY_AGENT_PROMPT, TAX_AGENT_PROMPT, COST_OF_LIVING_AGENT_PROMPT
 from src.orchestrator import get_orchestrator_graph
 from langchain_core.messages import HumanMessage
 import asyncio
@@ -80,6 +80,82 @@ async def get_personalized_cost(college_name: str, family_contribution: int, fin
         
         full_content = result["messages"][-1].content
         return full_content
+    except Exception as e:
+        return f"Error during agent execution: {str(e)}"
+
+@mcp.tool()
+async def get_expected_salary(college_name: str, major: str = "") -> str:
+    """
+    Get the expected post-graduation salary for a given college and optionally a specific major.
+    """
+    try:
+        agent = get_agent()
+    except Exception as e:
+        return f"Error initializing agent: {str(e)}"
+
+    print(f"Researching salary for: {college_name} {major}...")
+    
+    query = f"Find the average expected starting salary for graduates of {college_name}"
+    if major:
+        query += f" majoring in {major}"
+        
+    inputs = {"messages": [
+        SystemMessage(content=SALARY_AGENT_PROMPT),
+        ("user", query)
+    ]}
+    
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, agent.invoke, inputs)
+        return result["messages"][-1].content
+    except Exception as e:
+        return f"Error during agent execution: {str(e)}"
+
+@mcp.tool()
+async def get_tax_rates(post_graduation_city_state: str) -> str:
+    """
+    Get applicable tax rates for a specific post-graduation location in the US.
+    """
+    try:
+        agent = get_agent()
+    except Exception as e:
+        return f"Error initializing agent: {str(e)}"
+
+    print(f"Researching tax rates for: {post_graduation_city_state}...")
+    
+    inputs = {"messages": [
+        SystemMessage(content=TAX_AGENT_PROMPT),
+        ("user", f"Find the state and local income tax rates for someone living and working in {post_graduation_city_state}")
+    ]}
+    
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, agent.invoke, inputs)
+        return result["messages"][-1].content
+    except Exception as e:
+        return f"Error during agent execution: {str(e)}"
+
+@mcp.tool()
+async def get_cost_of_living_ranges(post_graduation_city_state: str) -> str:
+    """
+    Get reference cost of living ranges for a specific post-graduation city.
+    """
+    try:
+        agent = get_agent()
+    except Exception as e:
+        return f"Error initializing agent: {str(e)}"
+
+    print(f"Researching cost of living for: {post_graduation_city_state}...")
+    
+    inputs = {"messages": [
+        SystemMessage(content=COST_OF_LIVING_AGENT_PROMPT),
+        ("user", f"Find the low, median, and high estimates for monthly rent, groceries, utilities, transportation, and healthcare in {post_graduation_city_state}")
+    ]}
+    
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, agent.invoke, inputs)
+        return result["messages"][-1].content
     except Exception as e:
         return f"Error during agent execution: {str(e)}"
 

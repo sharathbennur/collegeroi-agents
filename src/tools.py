@@ -4,8 +4,8 @@ import requests
 from bs4 import BeautifulSoup
 
 @tool
-def search_college(query: str) -> str:
-    """Searches for information about a college, typically to find its tuition page URL."""
+def web_search(query: str) -> str:
+    """Searches the web for information using DuckDuckGo."""
     try:
         url = "https://html.duckduckgo.com/html/"
         data = {"q": query}

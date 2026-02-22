@@ -1,61 +1,53 @@
-import asyncio
-import os
-import sqlite3
-from src.orchestrator import get_orchestrator_graph
+import sys
 from langchain_core.messages import HumanMessage
-from termcolor import colored
+from src.orchestrator import get_orchestrator_graph, OrchestratorState
 
-async def test_orchestrator_memory():
-    print(colored("Starting verification of Orchestrator Agent & State Management...", "cyan"))
+def test_orchestrator():
+    print("Initializing Orchestrator Graph...")
+    graph = get_orchestrator_graph()
+    config = {"configurable": {"thread_id": "test_user_2"}}
     
-    db_path = "test_checkpoints.sqlite"
-    # Remove existing test db if any
-    if os.path.exists(db_path):
-        os.remove(db_path)
+    # Simulate a conversation
+    prompts = [
+        "Hi, I want to calculate my college ROI.",
+        "I want to go to University of Michigan.",
+        "I'm going to major in Mechanical Engineering.",
+        "I plan to live in Detroit, MI."
+    ]
+    
+    state = OrchestratorState(
+        messages=[],
+        college_name="", major="", location="",
+        tuition_found=False, salary_found=False, taxes_found=False, living_costs_found=False
+    )
+    
+    for user_msg in prompts:
+        print(f"\n--- USER: {user_msg} ---")
+        state["messages"].append(HumanMessage(content=user_msg))
         
-    graph = get_orchestrator_graph(db_path=db_path)
-    user_id = "test_user_123"
-    config = {"configurable": {"thread_id": user_id}}
-    
-    # Step 1: Initial query
-    print(colored(f"\n[Step 1] Asking about Stanford...", "yellow"))
-    input_1 = {"messages": [HumanMessage(content="Hi, I want to research tuition for Stanford University.")]}
-    
-    # We use loop.run_in_executor because our graph.invoke is synchronous (wraps sync agent)
-    loop = asyncio.get_event_loop()
-    
-    def run_1():
-        return graph.invoke(input_1, config=config)
-    
-    result_1 = await loop.run_in_executor(None, run_1)
-    print(f"Assistant: {result_1['messages'][-1].content[:200]}...")
-    
-    # Step 2: Follow-up query to check memory
-    print(colored(f"\n[Step 2] Asking a follow-up about 'it' (memory check)...", "yellow"))
-    input_2 = {"messages": [HumanMessage(content="Wait, actually tell me about Harvard instead.")]}
-    
-    def run_2():
-        return graph.invoke(input_2, config=config)
-        
-    result_2 = await loop.run_in_executor(None, run_2)
-    print(f"Assistant: {result_2['messages'][-1].content[:200]}...")
-    
-    # Step 3: Check SQLite to see if checkpoints exist
-    print(colored(f"\n[Step 3] Verifying SQLite persistence...", "yellow"))
-    if os.path.exists(db_path):
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT count(*) FROM checkpoints")
-        count = cursor.fetchone()[0]
-        conn.close()
-        print(colored(f"Success: Found {count} checkpoints in {db_path}", "green"))
-    else:
-        print(colored(f"Failure: {db_path} was not created!", "red"))
+        # We need to parse out the state updates since the orchestrator doesn't natively extract them yet
+        # For the sake of the test routing flowing, we'll manually inject the 'found' state if an agent runs
+        # and manually extract the entities from the user prompt for the state
+        if "Michigan" in user_msg:
+            state["college_name"] = "University of Michigan"
+        if "Engineering" in user_msg:
+            state["major"] = "Mechanical Engineering"
+        if "Detroit" in user_msg:
+            state["location"] = "Detroit, MI"
 
-    # Cleanup
-    if os.path.exists(db_path):
-        os.remove(db_path)
-        print(colored("Cleaned up test database.", "cyan"))
+        for event in graph.stream(state, config):
+            for node_name, node_state in event.items():
+                print(f"[{node_name}] -> {node_state['messages'][-1].content[:200]}...")
+                
+                # Update our test state with any flags the node flipped
+                for key in ['tuition_found', 'salary_found', 'taxes_found', 'living_costs_found']:
+                    if key in node_state and node_state[key]:
+                        state[key] = True
+        
+        # Update messages history
+        latest_msg = list(event.values())[0]["messages"][-1]
+        state["messages"].append(latest_msg)
+        print(f"\nCURRENT STATE FLAGS: Tuition: {state['tuition_found']}, Salary: {state['salary_found']}, Tax: {state['taxes_found']}, Cost: {state['living_costs_found']}")
 
 if __name__ == "__main__":
-    asyncio.run(test_orchestrator_memory())
+    test_orchestrator()

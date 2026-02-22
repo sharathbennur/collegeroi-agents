@@ -6,7 +6,13 @@ from langgraph.graph.message import add_messages
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
-from src.agent import get_agent, SYSTEM_PROMPT as RESEARCH_PROMPT
+from src.agent import (
+    get_agent, 
+    SYSTEM_PROMPT as TUITION_PROMPT,
+    SALARY_AGENT_PROMPT,
+    TAX_AGENT_PROMPT,
+    COST_OF_LIVING_AGENT_PROMPT
+)
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,8 +20,16 @@ load_dotenv()
 # Define the state schema
 class OrchestratorState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
-    colleges_queried: List[str]
-    validated_info: Dict[str, str]  # college_name -> status (e.g., "confirmed", "incorrect")
+    
+    # State flags to track calculation progress
+    college_name: str
+    major: str
+    location: str
+    
+    tuition_found: bool
+    salary_found: bool
+    taxes_found: bool
+    living_costs_found: bool
 
 def get_model():
     api_key = os.getenv("OPEN_ROUTER_API_KEY")
@@ -28,101 +42,117 @@ def get_model():
 
 def orchestrator_node(state: OrchestratorState):
     """
-    The orchestrator decides what to do based on user input.
-    It can call the research agent, update validation status, or just chat.
+    The orchestrator manages the step-by-step data collection journey.
     """
     model = get_model()
     
-    # System prompt for the orchestrator
+    # Extract current state for prompting
+    college = state.get('college_name', 'Not provided')
+    major = state.get('major', 'Not provided')
+    location = state.get('location', 'Not provided')
+    
     system_msg = SystemMessage(content=f"""You are the College ROI Orchestrator. 
-    Your job is to manage the user's research journey.
+    Your goal is to collect all necessary data for an expected ROI calculation.
     
     CURRENT STATE:
-    - Colleges Queried: {state.get('colleges_queried', [])}
-    - Validated Info: {state.get('validated_info', {})}
+    - Target College: {college} (Tuition Found: {state.get('tuition_found', False)})
+    - Planned Major: {major} (Salary Found: {state.get('salary_found', False)})
+    - Planned Post-Grad Location: {location} 
+        (Taxes Found: {state.get('taxes_found', False)})
+        (Living Costs Found: {state.get('living_costs_found', False)})
     
-    GUIDELINES:
-    1. YOUR ONLY CAPABILITIES ARE:
-        - Finding 4-year tuition, room, and board costs for US colleges.
-        - Calculating personalized net price and financial gaps based on family contribution/aid.
-    2. If the user asks for anything else (e.g., essay help, general life advice, coding, etc.), politely DECLINE and explain that you are a specialized agent for college cost research only.
-    3. If the user asks for tuition info, acknowledge it and initiate research.
-    4. Maintain the state of visited colleges and validated info.
+    Your job is to progress the research SEQUENTIALLY. Guide the user if they haven't provided info.
+    1. If College is unknown -> Ask for the College.
+    2. If College is known but Tuition is False -> Route to TUITION agent.
+    3. If Tuition is True but Major is unknown -> Ask the user for their planned major (or if they are undecided).
+    4. If Major is known (or undecided) but Salary is False -> Route to SALARY agent.
+    5. If Salary is True but Location is unknown -> Ask where they plan to live and work after graduation (City, State).
+    6. If Location is known but Taxes are False -> Route to TAX agent.
+    7. If Taxes are True but Living Costs are False -> Route to LIVING_COSTS agent.
+    8. Once all flags are True, summarize that data collection is complete and the ROI calculator can be executed.
     
-    Respond to the user naturally. If you need to perform research, explicitly state that you are calling the research agent.
+    HOW TO ROUTE:
+    If you need to call an agent to fetch data based on the sequential rules above, output EXACTLY ONE of the following routing tags at the very end of your message:
+    [ROUTE: TUITION]
+    [ROUTE: SALARY]
+    [ROUTE: TAX]
+    [ROUTE: COST_OF_LIVING]
+    
+    Otherwise, just converse with the user normally to ask for the missing information.
     """)
     
     messages = [system_msg] + state["messages"]
     response = model.invoke(messages)
     
-    # Simple heuristic to update state (in a complex app, we'd use structured output)
-    new_colleges = list(state.get("colleges_queried", []))
-    # Basic logic: if a college name is mentioned in a query for the first time, add it
-    # For now, we'll keep it simple and just return the AI response.
-    
     return {"messages": [response]}
 
-def research_node(state: OrchestratorState):
-    """
-    Calls the underlying research agent.
-    """
-    agent = get_agent()
-    # Pass the last user message to the research agent
-    last_user_message = next((m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), "")
-    
-    result = agent.invoke({"messages": [HumanMessage(content=last_user_message)]})
-    agent_response = result["messages"][-1]
-    
-    # Update queried colleges list if we found info
-    new_colleges = list(state.get("colleges_queried", []))
-    # Dummy logic to extract college - ideally use the model
-    # For this demo, we'll just append a placeholder or assume extraction happened
-    
-    return {
-        "messages": [agent_response],
-        # We'd update colleges_queried here if we had a clean extraction
-    }
+# Helper to run an agent and update state flags
+def create_agent_node(prompt: str, flag_to_update: str):
+    def agent_node(state: OrchestratorState):
+        agent = get_agent()
+        # Find the last actual user request or the orchestrator's synthesized instruction
+        last_message = next((m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), "")
+        
+        # Add context from state so the agent knows what to search for
+        college = state.get('college_name', '')
+        major = state.get('major', '')
+        location = state.get('location', '')
+        
+        context_prompt = f"{prompt}\n\nCURRENT TARGETS for this search:\n- College: {college}\n- Major: {major}\n- Location: {location}"
+        
+        # Inject the contextual prompt
+        inputs = {"messages": [SystemMessage(content=context_prompt), HumanMessage(content=last_message)]}
+        result = agent.invoke(inputs)
+        
+        return {
+            "messages": [result["messages"][-1]],
+            flag_to_update: True
+        }
+    return agent_node
+
+# Define specific nodes
+tuition_node = create_agent_node(TUITION_PROMPT, "tuition_found")
+salary_node = create_agent_node(SALARY_AGENT_PROMPT, "salary_found")
+tax_node = create_agent_node(TAX_AGENT_PROMPT, "taxes_found")
+cost_of_living_node = create_agent_node(COST_OF_LIVING_AGENT_PROMPT, "living_costs_found")
 
 def get_orchestrator_graph(db_path="checkpoints.sqlite"):
-    # Initialize the checkpoint saver
-    # Note: SqliteSaver requires a connection
     conn = sqlite3.connect(db_path, check_same_thread=False)
     memory = SqliteSaver(conn)
     
     workflow = StateGraph(OrchestratorState)
     
     workflow.add_node("orchestrator", orchestrator_node)
-    workflow.add_node("researcher", research_node)
+    workflow.add_node("tuition_agent", tuition_node)
+    workflow.add_node("salary_agent", salary_node)
+    workflow.add_node("tax_agent", tax_node)
+    workflow.add_node("cost_of_living_agent", cost_of_living_node)
     
     # Define the flow
     workflow.add_edge(START, "orchestrator")
     
-    # Simplified routing: if user asks for research, go to researcher, then back to orchestrator
-    # For now, let's just make it a simple linear flow for demonstration or 
-    # use conditional edges if we want to be fancy.
-    
     def route_orchestrator(state: OrchestratorState):
-        last_ai_msg = state["messages"][-1].content.lower()
-        if "calling the research agent" in last_ai_msg or "researching" in last_ai_msg:
-            return "researcher"
+        last_message = state["messages"][-1].content
+        if "[ROUTE: TUITION]" in last_message:
+            return "tuition_agent"
+        elif "[ROUTE: SALARY]" in last_message:
+            return "salary_agent"
+        elif "[ROUTE: TAX]" in last_message:
+            return "tax_agent"
+        elif "[ROUTE: COST_OF_LIVING]" in last_message:
+            return "cost_of_living_agent"
         return END
 
     workflow.add_conditional_edges("orchestrator", route_orchestrator)
-    workflow.add_edge("researcher", END) # Or back to orchestrator
+    
+    # All agents route back to orchestrator to determine the next step
+    workflow.add_edge("tuition_agent", "orchestrator")
+    workflow.add_edge("salary_agent", "orchestrator")
+    workflow.add_edge("tax_agent", "orchestrator")
+    workflow.add_edge("cost_of_living_agent", "orchestrator")
     
     return workflow.compile(checkpointer=memory)
 
 if __name__ == "__main__":
-    # Quick test
-    graph = get_orchestrator_graph()
-    config = {"configurable": {"thread_id": "user_1"}}
-    
-    input_msg = OrchestratorState(
-        messages=[HumanMessage(content="Find tuition for Stanford")],
-        colleges_queried=[],
-        validated_info={}
-    )
-    
-    for event in graph.stream(input_msg, config):
-        for value in event.values():
-            print(f"Assistant: {value['messages'][-1].content}")
+    # Test script in verification
+    pass

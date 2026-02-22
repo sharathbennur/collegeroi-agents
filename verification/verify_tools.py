@@ -1,10 +1,10 @@
-from src.tools import search_college, scrape_webpage
+from src.tools import web_search, scrape_webpage
 import sys
 
 def test_tools():
     print("Testing Search Tool...")
     try:
-        search_result = search_college.invoke("University of California Berkeley tuition")
+        search_result = web_search.invoke("University of California Berkeley tuition")
         print(f"Search Result (first 100 chars): {search_result[:100]}...")
     except Exception as e:
         print(f"Search Tool Failed: {e}")
