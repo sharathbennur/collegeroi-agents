@@ -42,9 +42,12 @@ def orchestrator_node(state: OrchestratorState):
     - Validated Info: {state.get('validated_info', {})}
     
     GUIDELINES:
-    1. If the user asks for tuition info for a college, you should acknowledge it and initiate research.
-    2. If the user confirms that the info you found is correct, update the 'validated_info'.
-    3. Keep track of which colleges have been visited.
+    1. YOUR ONLY CAPABILITIES ARE:
+        - Finding 4-year tuition, room, and board costs for US colleges.
+        - Calculating personalized net price and financial gaps based on family contribution/aid.
+    2. If the user asks for anything else (e.g., essay help, general life advice, coding, etc.), politely DECLINE and explain that you are a specialized agent for college cost research only.
+    3. If the user asks for tuition info, acknowledge it and initiate research.
+    4. Maintain the state of visited colleges and validated info.
     
     Respond to the user naturally. If you need to perform research, explicitly state that you are calling the research agent.
     """)

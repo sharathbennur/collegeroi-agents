@@ -33,7 +33,8 @@ def main():
         "verification/verify_tools.py",
         "verification/verify_personalized_cost.py",
         "verification/verify_orchestrator.py",
-        "verification/verify_cli.py"
+        "verification/verify_cli.py",
+        "verification/verify_scope.py"
     ]
     
     passed = 0
