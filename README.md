@@ -56,6 +56,7 @@ The API will be available at `http://localhost:8000`.
 - Query: `GET /college/{college_name}`
 - Personalized: `POST /personalized-cost` (Body: `{"college_name": "string", "family_contribution": int, "financial_aid": int}`)
 - Chat: `POST /chat` (Body: `{"message": "string", "user_id": "string"}`)
+  - **Note**: The `/chat` endpoint returns a `StreamingResponse` using Server-Sent Events (SSE), making it compatible with frontend streaming hooks like Vercel's `useChat` or React's `useStream`.
 
 ### MCP Server
 Run the MCP server (typically used by an MCP client):

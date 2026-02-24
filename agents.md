@@ -13,7 +13,8 @@ The core agent is a ReAct agent powered by `google/gemini-2.5-flash` via OpenRou
 
 ### Implementation
 - **Source**: `src/agent.py`
-- **Tools**: `src/tools.py` (`search_college`, `scrape_webpage`)
+- **Agents**: Tuition, Salary, Tax, and Cost of Living agents.
+- **Tools**: `src/tools.py` (`web_search`, `scrape_webpage`)
 
 ## Interfaces
 
@@ -29,7 +30,7 @@ The agent is exposed through multiple interfaces:
 - **Endpoints**:
     - `GET /college/{college_name}`: Returns tuition info and sources.
     - `POST /personalized-cost`: Returns a personalized breakdown based on aid.
-    - `POST /chat`: Stateful session chat using the Orchestrator.
+    - `POST /chat`: Stateful session chat using the Orchestrator. Returns a Server-Sent Events (SSE) stream compatible with React `useStream` hooks.
 - **Function**: REST API wrapper around the agent.
 
 ### 3. MCP Server (Model Context Protocol)

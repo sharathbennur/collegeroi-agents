@@ -4,6 +4,7 @@ from typing import Annotated, List, TypedDict, Dict
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from src.agent import (
@@ -36,6 +37,7 @@ def get_model():
     return ChatOpenAI(
         model="google/gemini-2.5-flash",
         temperature=0,
+        streaming=True,
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1"
     )
@@ -152,6 +154,49 @@ def get_orchestrator_graph(db_path="checkpoints.sqlite"):
     workflow.add_edge("cost_of_living_agent", "orchestrator")
     
     return workflow.compile(checkpointer=memory)
+
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def get_async_orchestrator_graph(db_path="checkpoints.sqlite"):
+    """
+    Async version of the graph for streaming API endpoints.
+    Yields the compiled graph with an AsyncSqliteSaver connected to the DB.
+    """
+    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+    
+    # Needs to be an async context manager to handle the DB connection cleanly
+    async with AsyncSqliteSaver.from_conn_string(db_path) as memory:
+        workflow = StateGraph(OrchestratorState)
+        
+        workflow.add_node("orchestrator", orchestrator_node)
+        workflow.add_node("tuition_agent", tuition_node)
+        workflow.add_node("salary_agent", salary_node)
+        workflow.add_node("tax_agent", tax_node)
+        workflow.add_node("cost_of_living_agent", cost_of_living_node)
+        
+        workflow.add_edge(START, "orchestrator")
+        
+        def route_orchestrator(state: OrchestratorState):
+            last_message = state["messages"][-1].content
+            if "[ROUTE: TUITION]" in last_message:
+                return "tuition_agent"
+            elif "[ROUTE: SALARY]" in last_message:
+                return "salary_agent"
+            elif "[ROUTE: TAX]" in last_message:
+                return "tax_agent"
+            elif "[ROUTE: COST_OF_LIVING]" in last_message:
+                return "cost_of_living_agent"
+            return END
+
+        workflow.add_conditional_edges("orchestrator", route_orchestrator)
+        
+        workflow.add_edge("tuition_agent", "orchestrator")
+        workflow.add_edge("salary_agent", "orchestrator")
+        workflow.add_edge("tax_agent", "orchestrator")
+        workflow.add_edge("cost_of_living_agent", "orchestrator")
+        
+        yield workflow.compile(checkpointer=memory)
 
 if __name__ == "__main__":
     # Test script in verification
